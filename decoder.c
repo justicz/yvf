@@ -4,11 +4,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "decoder.h"
 #include "zfp/inc/zfp.h"
+
+static size_t frame_number = 1;
+static size_t num_vertices;
+static size_t num_frames;
+static size_t frames_per_chunk;
+static char *indir;
+static float *xyz[3];
+static float tolerance;
 
 /* compress or decompress array */
 static int
-decompress(float* array, int nx, float tolerance, char *indir, char *name, size_t n)
+decompress(float* array, char *name, size_t n)
 {
 	int status = 0;		 /* return value: 0 = success */
 	zfp_type type;		 /* array scalar type */
@@ -25,7 +34,7 @@ decompress(float* array, int nx, float tolerance, char *indir, char *name, size_
 	fin = fopen(filename, "r");
 
 	type = zfp_type_float;
-	field = zfp_field_1d(array, type, nx);
+	field = zfp_field_2d(array, type, num_vertices, frames_per_chunk);
 
 	/* allocate meta data for a compressed stream */
 	zfp = zfp_stream_open(NULL);
@@ -61,35 +70,53 @@ decompress(float* array, int nx, float tolerance, char *indir, char *name, size_
 	return status;
 }
 
-int main(int argc, char* argv[])
+float xyz_to_frame(float **xyz, float *frame, size_t offset)
 {
-	/* use -d to decompress rather than compress data */
-
-	if (argc != 4)
+	for (size_t i = 0; i < num_vertices; i++)
 	{
-		printf("Need input folder, num vertices, num_files\n");
-		exit(1);
+		frame[3*i + 0] = xyz[0][i + offset * num_vertices];
+		frame[3*i + 1] = xyz[1][i + offset * num_vertices];
+		frame[3*i + 2] = xyz[2][i + offset * num_vertices];
+	}	
+}
+
+void get_frame(float *frame)
+{
+	// Stop if we're at the end of the animation
+	if (frame_number == num_frames)
+	{
+		return;
 	}
+	size_t offset = frame_number % frames_per_chunk;
+	// Decompress a frame if we need to
+	if (offset == 0)
+	{
+		size_t file_number = frame_number / frames_per_chunk;
+		decompress(xyz[0], "z", file_number);
+		decompress(xyz[1], "x", file_number);
+		decompress(xyz[2], "y", file_number);
+	}
+	xyz_to_frame(xyz, frame, offset);
+	printf("decoded frame %zu\n", frame_number);
+	frame_number++;
+}
 
-	char *indir = argv[1];
-	size_t len = atoi(argv[2]);
-	size_t count = atoi(argv[3]);
-	float *xyz[3];
-
+void init_decoder(char *dir, size_t n_vertices, size_t n_frames, size_t fpc, float tol)
+{
+	num_frames = n_frames;
+	num_vertices = n_vertices;
+	indir = dir;
+	tolerance = tol;
+	frames_per_chunk = fpc;
 	for (size_t i = 0; i < 3; i++)
 	{
-		xyz[i] = (float *) malloc(sizeof(float) * len);
+		xyz[i] = (float *) malloc(sizeof(float) * num_vertices * frames_per_chunk);
 	}
-
-	for (size_t i = 1; i < count + 1; i++)
+	if (!xyz[0] || !xyz[1] || !xyz[2])
 	{
-		decompress(xyz[0], len, 1e-4, indir, "x", i);
-		decompress(xyz[1], len, 1e-4, indir, "y", i);
-		decompress(xyz[2], len, 1e-4, indir, "z", i);
+		fprintf(stderr, "couldn't allocate xyz buffer");
+		exit(1);
 	}
-
-	free(xyz[0]);
-	free(xyz[1]);
-	free(xyz[2]);
+	printf("decoder initialized\n");
 }
 

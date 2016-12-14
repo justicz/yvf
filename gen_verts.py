@@ -89,6 +89,7 @@ def job(start_frame):
 				writex, writey = col, row
 				x, y, z = o.vertices[verti]
 				fout.write("{}\n{}\n{}\n".format(repr(x), repr(y), repr(z)))
+		print "wrote {}".format(filename)
 
 if __name__ == "__main__":
 	if len(sys.argv) != 3:
@@ -107,8 +108,8 @@ if __name__ == "__main__":
 	# x, y, z -> <x0, y0, z0>, <x1, y1, z1>, ...
 	WIDTH = 280
 	HEIGHT = 280
-	POOL_SIZE = 1
-	NUM_FRAMES = 10
+	POOL_SIZE = 4
+	NUM_FRAMES = 270
 	BATCH_SIZE = NUM_FRAMES/POOL_SIZE
 	WALK = temp_o.walk()
 	print "Walk len:", len(WALK)
